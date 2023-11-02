@@ -50,19 +50,20 @@ std::ofstream outFile;
 %%
 
 start: AUTOMATA_AFN alphabet states initial final transitions AUTOMATA_AFN_FIN
-    | AUTOMATA_AFN error AUTOMATA_AFN_FIN
+    | AUTOMATA_AFN error {yyerror("Se esperaba una etiqueta");} AUTOMATA_AFN_FIN
     ;
 
 alphabet: ALFABETO {outFile << "<ALFABETO>\n";} symbols ALFABETO_FIN {outFile << "</ALFABETO>\n";}
-    | ALFABETO error ALFABETO_FIN
+    | ALFABETO error {yyerror("Se esperaba una letra o un caracter");} ALFABETO_FIN
     ;
 
 symbols: LETRA { outFile << $1 << "\n"; } symbols
+       | CARACTER { outFile << $1 << "\n"; } symbols
        | /* empty */
     ;
 
 states: ESTADO {outFile << "<ESTADO>\n";} state_ids ESTADO_FIN {outFile << "</ESTADO>\n";}
-    | ESTADO error ESTADO_FIN
+    | ESTADO error yyerror{("Se esperaba un numero");} ESTADO_FIN
     ;
 
 state_ids: DIGITO { outFile << $1 << "\n"; } state_ids
@@ -70,13 +71,15 @@ state_ids: DIGITO { outFile << $1 << "\n"; } state_ids
     ;
 
 initial: INICIAL {outFile << "<INICIAL>\n";} initial_states INICIAL_FIN { outFile << "</INICIAL>\n";}
+        | INICIAL error {yyerror("Se esperaba un numero");} INICIAL_FIN
     ;
 
 initial_states: DIGITO { outFile << $1 << "\n"; } initial_states
                | /* empty */
     ;
 
-final: FINAL {outFile << "<FINAL>\n"} final_states FINAL_FIN { outFile << "</FINAL>\n";}
+final: FINAL {outFile << "<FINAL>\n"; } final_states FINAL_FIN { outFile << "</FINAL>\n";}
+            | FINAL error {yyerror("Se esperaba un numero");} FINAL_FIN
     ;
 
 final_states: DIGITO { outFile << $1 << "\n"; } final_states
@@ -84,6 +87,7 @@ final_states: DIGITO { outFile << $1 << "\n"; } final_states
     ;
 
 transitions: TRANSICIONES {outFile << "<TANSICIONES>\n"} transition_rules TRANSICIONES_FIN { outFile << "</TRANSICIONES>\n";}
+            | TRANSICIONES error {yyerror("Se esperaba una transicion valida con la forma 'n,a,m");} TRANSICIONES_FIN
            ;
 
 transition_rules: DIGITO COMA CADENA_VACIA COMA DIGITO { outFile << $1 << ",&," << $5 << "\n"; } transition_rules
@@ -93,33 +97,3 @@ transition_rules: DIGITO COMA CADENA_VACIA COMA DIGITO { outFile << $1 << ",&," 
 
 %%
 
-int main(int argc, char **argv) {
-    if (argc > 1) {
-        yyin = fopen(argv[1], "r");
-        if (yyin == NULL) {
-            std::cerr << "Error al abrir el archivo: " << argv[1] << std::endl;
-            return 1;
-        }
-    }
-
-    // Abrir el archivo de salida
-    outFile.open("output.txt");
-    if (!outFile) {
-        std::cerr << "No se pudo abrir el archivo de salida." << std::endl;
-        return 1;
-    }
-
-    // Realizar el análisis sintáctico
-    int result = yyparse();
-
-    // Cerrar el archivo de salida
-    outFile.close();
-
-    if (result == 0) {
-        std::cout << "Análisis completado con éxito." << std::endl;
-    } else {
-        std::cout << "Se encontraron errores durante el análisis." << std::endl;
-    }
-
-    return result;
-}
