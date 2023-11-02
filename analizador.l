@@ -12,7 +12,7 @@ FILE* yyin; // Definir yyin como variable global
 %option yylineno
 %option noyywrap
 
-CARACTER                   [!@#$%*()=-+{}|:;?.,~<>^_`/\\]
+CARACTER                   [!@#$%*()=-+{}|:;?.,~^_`/\\]
 
 %%
 
