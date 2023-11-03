@@ -2,6 +2,7 @@
 #include <iostream>
 #include <string>
 #include <fstream>
+#include "afn.h"
 
 //#define YYSTYPE std::string
 
@@ -10,13 +11,7 @@ extern FILE *yyin;
 extern int yylineno;
 extern int yylex();
 
-void yyerror(const char *s) { 
-    std::ofstream errorFile("bitacoraErrores.txt", std::ios_base::app);
-    errorFile << "Error en la linea " << yylineno << ": " << s << ", token erroneo: " << yytext << std::endl;
-    errorFile.close();
-}
-
-std::ofstream outFile;
+extern void yyerror(const char *s);
 
 %}
 
@@ -50,50 +45,87 @@ std::ofstream outFile;
 %%
 
 start: AUTOMATA_AFN alphabet states initial final transitions AUTOMATA_AFN_FIN
-    | AUTOMATA_AFN error {yyerror("Se esperaba una etiqueta");} AUTOMATA_AFN_FIN
+    | AUTOMATA_AFN error AUTOMATA_AFN_FIN
     ;
 
-alphabet: ALFABETO {outFile << "<ALFABETO>\n";} symbols ALFABETO_FIN {outFile << "</ALFABETO>\n";}
-    | ALFABETO error {yyerror("Se esperaba una letra o un caracter");} ALFABETO_FIN
+alphabet: ALFABETO {alfabeto.insert('&');} symbols ALFABETO_FIN 
+    | ALFABETO error ALFABETO_FIN
     ;
 
-symbols: LETRA { outFile << $1 << "\n"; } symbols
-       | CARACTER { outFile << $1 << "\n"; } symbols
+symbols: LETRA { alfabeto.insert($1[0]); } symbols
+       | CARACTER { alfabeto.insert($1[0]); } symbols
        | /* empty */
     ;
 
-states: ESTADO {outFile << "<ESTADO>\n";} state_ids ESTADO_FIN {outFile << "</ESTADO>\n";}
-    | ESTADO error yyerror{("Se esperaba un numero");} ESTADO_FIN
+states: ESTADO state_ids ESTADO_FIN
+    | ESTADO error ESTADO_FIN
     ;
 
-state_ids: DIGITO { outFile << $1 << "\n"; } state_ids
+state_ids: DIGITO { estados.insert($1); } state_ids
          | /* empty */
     ;
 
-initial: INICIAL {outFile << "<INICIAL>\n";} initial_states INICIAL_FIN { outFile << "</INICIAL>\n";}
-        | INICIAL error {yyerror("Se esperaba un numero");} INICIAL_FIN
+initial: INICIAL initial_states INICIAL_FIN
+        | INICIAL error INICIAL_FIN
     ;
 
-initial_states: DIGITO { outFile << $1 << "\n"; } initial_states
+initial_states: DIGITO { estadoInicial = $1; } initial_states
                | /* empty */
     ;
 
-final: FINAL {outFile << "<FINAL>\n"; } final_states FINAL_FIN { outFile << "</FINAL>\n";}
-            | FINAL error {yyerror("Se esperaba un numero");} FINAL_FIN
+final: FINAL final_states FINAL_FIN
+            | FINAL error FINAL_FIN
     ;
 
-final_states: DIGITO { outFile << $1 << "\n"; } final_states
+final_states: DIGITO { estadosFinales.insert($1); } final_states
             | /* empty */
     ;
 
-transitions: TRANSICIONES {outFile << "<TANSICIONES>\n"} transition_rules TRANSICIONES_FIN { outFile << "</TRANSICIONES>\n";}
-            | TRANSICIONES error {yyerror("Se esperaba una transicion valida con la forma 'n,a,m");} TRANSICIONES_FIN
+transitions: TRANSICIONES transition_rules TRANSICIONES_FIN
+            | TRANSICIONES error TRANSICIONES_FIN
            ;
 
-transition_rules: DIGITO COMA CADENA_VACIA COMA DIGITO { outFile << $1 << ",&," << $5 << "\n"; } transition_rules
-                | DIGITO COMA LETRA COMA DIGITO { outFile << $1 << "," << $3[0] << "," << $5 << "\n"; } transition_rules
+transition_rules: DIGITO COMA CADENA_VACIA COMA DIGITO { transiciones.push_back(Transicion($1, '&', $5)); } transition_rules
+                | DIGITO COMA LETRA COMA DIGITO { transiciones.push_back(Transicion($1, $3[0], $5)); } transition_rules
                 | /* empty */
     ;
 
 %%
 
+std::set<int> estados;
+std::set<char> alfabeto;
+std::vector<Transicion> transiciones; // Donde Transicion es una estructura o clase que representa una transición
+int estadoInicial;
+std::set<int> estadosFinales;
+
+void validarafn(){
+    // Comprobar las transiciones
+    for (const auto& transicion : transiciones) {
+        if (estados.find(transicion.estadoOrigen) == estados.end()) {
+            std::cerr << "Error: El estado origen " << transicion.estadoOrigen << " no existe.\n";
+            exit(1);
+        }
+        if (estados.find(transicion.estadoDestino) == estados.end()) {
+            std::cerr << "Error: El estado destino " << transicion.estadoDestino << " no existe.\n";
+            exit(1);
+        }
+        if (alfabeto.find(transicion.simbolo) == alfabeto.end()) {
+            std::cerr << "Error: El simbolo " << transicion.simbolo << " no existe en el alfabeto.\n";
+            exit(1);
+        }
+    }
+
+    // Comprobar el estado inicial
+    if (estados.find(estadoInicial) == estados.end()) {
+        std::cerr << "Error: El estado inicial " << estadoInicial << " no existe.\n";
+        exit(1);
+    }
+
+    // Comprobar los estados finales
+    for (const auto& estadoFinal : estadosFinales) {
+        if (estados.find(estadoFinal) == estados.end()) {
+            std::cerr << "Error: El estado final " << estadoFinal << " no existe.\n";
+            exit(1);
+        }
+    }
+}
